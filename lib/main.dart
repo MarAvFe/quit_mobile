@@ -13,7 +13,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'QUIT',
       theme: ThemeData(
-        primarySwatch: Colors.yellow,
+        primarySwatch: Colors.lightGreen,
       ),
       home: MyHomePage(title: 'Quick Image Tagger'),
     );
@@ -29,21 +29,43 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  //int _counter = 0;
+class ImageViewer extends StatefulWidget {
+  ImageViewer({Key key, this.path}) : super(key: key);
 
-  void _incrementCounter() {
-    setState(() {
-      //_counter++;
-    });
-  }
+  final String path;
 
-  Directory selectedDirectory = new Directory('/sdcard');
+  @override
+  _ImageViewerState createState() => _ImageViewerState();
+}
+
+class _ImageViewerState extends State<ImageViewer> {
   Image shownImage = Image.network(
     'https://moorestown-mall.com/noimage.gif',
     fit: BoxFit.cover,
   );
+
+  @override
+  Widget build(BuildContext context) {
+    var scale = PhotoViewComputedScale.contained;
+    return Container(
+        width: MediaQuery.of(context).size.width,
+        height: MediaQuery.of(context).size.height * 0.65,
+        alignment: AlignmentDirectional(0.0, 0.0),
+        child: ClipRect(
+            child: new PhotoView(
+          backgroundDecoration: new BoxDecoration(color: Colors.grey[300]),
+          imageProvider: Image.asset(widget.path).image,
+          initialScale: scale,
+          minScale: scale * 0.8,
+          maxScale: 4.0,
+        )));
+  }
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  Directory selectedDirectory = new Directory('/sdcard');
   var readPaths = [];
+  var workingIdx = 0;
 
   Future<void> _pickDirectory(BuildContext context) async {
     Directory directory = selectedDirectory;
@@ -54,7 +76,6 @@ class _MyHomePageState extends State<MyHomePage> {
     Directory newDirectory = await DirectoryPicker.pick(
       context: context,
       rootDirectory: directory,
-      /*shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10)))*/
     );
 
     setState(() {
@@ -68,26 +89,25 @@ class _MyHomePageState extends State<MyHomePage> {
         keepDir.exists().then((doesIt) => {!doesIt ? keepDir.create() : null});
       }
       var valid = ['jpg', 'png', 'jpeg', 'bmp'];
-      var picked = false;
-      print('diay');
+      readPaths = [];
       selectedDirectory.list().length.then((v) => {
-            print('awesome: $v'),
             if (v > 0)
               {
-                selectedDirectory.list().forEach((f) => valid.forEach((ext) => {
-                      if (f.path.toLowerCase().endsWith(ext))
-                        {print('file: ${f.path}'), readPaths.add(f.path)},
-                      if (!picked)
-                        {
-                          shownImage = Image.asset(f.path),
-                          picked = true,
-                          print("boop")
-                        },
-                      print('elementos vivos: ${readPaths.length}'),
-                    }))
+                selectedDirectory
+                    .list()
+                    .forEach((f) => valid.forEach((ext) => {
+                          if (f.path.toLowerCase().endsWith(ext))
+                            {readPaths.add(f.path)},
+                        }))
+                    .then((v) => {
+                          print('algo pasa: $v, ${readPaths.length}'),
+                          workingIdx = 0,
+                          setState(() {}),
+                        }),
               },
           });
     });
+    print(workingIdx++);
   }
 
   @override
@@ -108,37 +128,26 @@ class _MyHomePageState extends State<MyHomePage> {
             Text(
               'Browsing: ${selectedDirectory.path}',
             ),
-            Container(
-                width: 360,
-                height: 400,
-                color: Colors.red,
-                alignment: AlignmentDirectional(0.0, 0.0),
-                child: ClipRect(
-                    child: new PhotoView(
-                  backgroundDecoration:
-                      new BoxDecoration(color: Colors.grey[300]),
-                  imageProvider: shownImage.image,
-                  minScale: PhotoViewComputedScale.contained * 0.8,
-                  maxScale: 4.0,
-                ))),
+            ImageViewer(
+                path: readPaths.length == 0 ? '' : readPaths[workingIdx]),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: <Widget>[
-                /*Text(
-                  '$_counter',
-                  style: Theme.of(context).textTheme.display1,
-                ),*/
                 IconButton(
                   icon: Icon(Icons.skip_previous),
                   tooltip: 'Previous',
                   color: Colors.black,
                   onPressed: () {
-                    setState(() {});
+                    setState(() {
+                      workingIdx = workingIdx > 0
+                          ? workingIdx - 1
+                          : readPaths.length - 1;
+                    });
                   },
                 ),
                 Ink(
                     decoration: ShapeDecoration(
-                      color: Colors.grey,
+                      color: Colors.grey[200],
                       shape: CircleBorder(),
                     ),
                     child: IconButton(
@@ -159,7 +168,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 Ink(
                     decoration: ShapeDecoration(
-                        color: Colors.grey, shape: CircleBorder()),
+                        color: Colors.grey[200], shape: CircleBorder()),
                     child: IconButton(
                         icon: Icon(Icons.check),
                         tooltip: 'Keep',
@@ -173,7 +182,11 @@ class _MyHomePageState extends State<MyHomePage> {
                   tooltip: 'Skip next',
                   color: Colors.black,
                   onPressed: () {
-                    setState(() {});
+                    setState(() {
+                      workingIdx = workingIdx < readPaths.length - 1
+                          ? workingIdx + 1
+                          : 0;
+                    });
                   },
                 ),
               ],
@@ -181,11 +194,6 @@ class _MyHomePageState extends State<MyHomePage> {
           ],
         ),
       ),
-      //floatingActionButton: FloatingActionButton(
-      //  onPressed: _incrementCounter,
-      //  tooltip: 'Increment',
-      //  child: Icon(Icons.undo),
-      //), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
