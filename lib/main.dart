@@ -73,11 +73,13 @@ class _MyHomePageState extends State<MyHomePage> {
     //final path = await _localPath;
     // return File('$path/counter.txt');
     try {
-      var contents = await new File(readPaths[workingIdx]).readAsBytes();
+      String oldFile = readPaths[workingIdx];
+      var contents = await new File(oldFile).readAsBytes();
       String newFilePath =
           '${selectedDirectory.path}/${keep ? 'quit_keep' : 'quit_delete'}/${readPaths[workingIdx].split("/").last}';
       File newFile = File(newFilePath);
       newFile.writeAsBytes(contents);
+      await new File(oldFile).delete();
     } catch (e) {
       print('Exception: $e');
       return false;
@@ -174,7 +176,13 @@ class _MyHomePageState extends State<MyHomePage> {
                         color: Colors.red,
                         iconSize: 56,
                         onPressed: () {
-                          setState(() {});
+                          setState(() {
+                            moveImage(DELETE).then((success) => {
+                                  if (success)
+                                    {readPaths.remove(readPaths[workingIdx])},
+                                  setState(() {}),
+                                });
+                          });
                         })),
                 IconButton(
                   icon: Icon(Icons.undo),
@@ -192,8 +200,11 @@ class _MyHomePageState extends State<MyHomePage> {
                         iconSize: 56,
                         onPressed: () {
                           setState(() {
-                            moveImage(KEEP)
-                                .then((onValue) => print('succeed? $onValue'));
+                            moveImage(KEEP).then((success) => {
+                                  if (success)
+                                    {readPaths.remove(readPaths[workingIdx])},
+                                  setState(() {}),
+                                });
                           });
                         })),
                 IconButton(
