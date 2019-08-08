@@ -66,6 +66,24 @@ class _MyHomePageState extends State<MyHomePage> {
   Directory selectedDirectory = new Directory('/sdcard');
   var readPaths = [];
   var workingIdx = 0;
+  static const KEEP = true;
+  static const DELETE = false;
+
+  Future<bool> moveImage(bool keep) async {
+    //final path = await _localPath;
+    // return File('$path/counter.txt');
+    try {
+      var contents = await new File(readPaths[workingIdx]).readAsBytes();
+      String newFilePath =
+          '${selectedDirectory.path}/${keep ? 'quit_keep' : 'quit_delete'}/${readPaths[workingIdx].split("/").last}';
+      File newFile = File(newFilePath);
+      newFile.writeAsBytes(contents);
+    } catch (e) {
+      print('Exception: $e');
+      return false;
+    }
+    return true;
+  }
 
   Future<void> _pickDirectory(BuildContext context) async {
     Directory directory = selectedDirectory;
@@ -151,7 +169,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       shape: CircleBorder(),
                     ),
                     child: IconButton(
-                        icon: Icon(Icons.delete),
+                        icon: Icon(Icons.delete_outline),
                         tooltip: 'Delete',
                         color: Colors.red,
                         iconSize: 56,
@@ -161,21 +179,22 @@ class _MyHomePageState extends State<MyHomePage> {
                 IconButton(
                   icon: Icon(Icons.undo),
                   tooltip: 'Undo',
-                  color: Colors.yellow,
-                  onPressed: () {
-                    setState(() {});
-                  },
+                  color: Colors.yellow[600],
+                  onPressed: null,
                 ),
                 Ink(
                     decoration: ShapeDecoration(
                         color: Colors.grey[200], shape: CircleBorder()),
                     child: IconButton(
-                        icon: Icon(Icons.check),
+                        icon: Icon(Icons.save),
                         tooltip: 'Keep',
                         color: Colors.green,
                         iconSize: 56,
                         onPressed: () {
-                          setState(() {});
+                          setState(() {
+                            moveImage(KEEP)
+                                .then((onValue) => print('succeed? $onValue'));
+                          });
                         })),
                 IconButton(
                   icon: Icon(Icons.skip_next),
