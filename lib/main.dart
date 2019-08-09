@@ -39,11 +39,6 @@ class ImageViewer extends StatefulWidget {
 }
 
 class _ImageViewerState extends State<ImageViewer> {
-  Image shownImage = Image.network(
-    'https://moorestown-mall.com/noimage.gif',
-    fit: BoxFit.cover,
-  );
-
   @override
   Widget build(BuildContext context) {
     var scale = PhotoViewComputedScale.contained;
@@ -54,7 +49,9 @@ class _ImageViewerState extends State<ImageViewer> {
         child: ClipRect(
             child: new PhotoView(
           backgroundDecoration: new BoxDecoration(color: Colors.grey[300]),
-          imageProvider: Image.asset(widget.path).image,
+          imageProvider: widget.path != ''
+              ? Image.asset(widget.path).image
+              : AssetImage('images/no-image-found.png'),
           initialScale: scale,
           minScale: scale * 0.8,
           maxScale: 4.0,
@@ -65,6 +62,7 @@ class _ImageViewerState extends State<ImageViewer> {
 class _MyHomePageState extends State<MyHomePage> {
   Directory selectedDirectory = new Directory('/sdcard');
   var readPaths = [];
+  var history = [];
   var workingIdx = 0;
   static const KEEP = true;
   static const DELETE = false;
@@ -80,6 +78,7 @@ class _MyHomePageState extends State<MyHomePage> {
       File newFile = File(newFilePath);
       newFile.writeAsBytes(contents);
       await new File(oldFile).delete();
+      history.add('$newFilePath');
     } catch (e) {
       print('Exception: $e');
       return false;
@@ -146,7 +145,7 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: <Widget>[
             Text(
-              'Browsing: ${selectedDirectory.path}',
+              'Browsing: (${readPaths.length == 0 ? '0' : (workingIdx + 1)}/${readPaths.length}) ${selectedDirectory.path}',
             ),
             ImageViewer(
                 path: readPaths.length == 0 ? '' : readPaths[workingIdx]),
@@ -179,7 +178,12 @@ class _MyHomePageState extends State<MyHomePage> {
                           setState(() {
                             moveImage(DELETE).then((success) => {
                                   if (success)
-                                    {readPaths.remove(readPaths[workingIdx])},
+                                    {
+                                      readPaths.remove(readPaths[workingIdx]),
+                                      workingIdx == readPaths.length
+                                          ? workingIdx--
+                                          : null
+                                    },
                                   setState(() {}),
                                 });
                           });
@@ -188,7 +192,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   icon: Icon(Icons.undo),
                   tooltip: 'Undo',
                   color: Colors.yellow[600],
-                  onPressed: null,
+                  onPressed: history.length <= 0 ? null : () {},
                 ),
                 Ink(
                     decoration: ShapeDecoration(
@@ -202,7 +206,12 @@ class _MyHomePageState extends State<MyHomePage> {
                           setState(() {
                             moveImage(KEEP).then((success) => {
                                   if (success)
-                                    {readPaths.remove(readPaths[workingIdx])},
+                                    {
+                                      readPaths.remove(readPaths[workingIdx]),
+                                      workingIdx == readPaths.length
+                                          ? workingIdx--
+                                          : null
+                                    },
                                   setState(() {}),
                                 });
                           });
