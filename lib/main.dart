@@ -66,10 +66,10 @@ class _MyHomePageState extends State<MyHomePage> {
   var workingIdx = 0;
   static const KEEP = true;
   static const DELETE = false;
+  static const BACK = true;
+  static const FORWARD = false;
 
-  Future<bool> moveImage(bool keep) async {
-    //final path = await _localPath;
-    // return File('$path/counter.txt');
+  Future<bool> classifyImage(bool keep) async {
     try {
       String oldFile = readPaths[workingIdx];
       var contents = await new File(oldFile).readAsBytes();
@@ -79,11 +79,24 @@ class _MyHomePageState extends State<MyHomePage> {
       newFile.writeAsBytes(contents);
       await new File(oldFile).delete();
       history.add('$newFilePath');
+      readPaths.removeAt(workingIdx);
+      workingIdx == readPaths.length ? moveIdx(BACK) : null;
     } catch (e) {
       print('Exception: $e');
       return false;
     }
     return true;
+  }
+
+  void moveIdx(bool direction) {
+    workingIdx += direction == FORWARD ? 1 : -1;
+    workingIdx = readPaths.length != 0 ? workingIdx % readPaths.length : 0;
+    /* FORWARD: workingIdx = workingIdx < readPaths.length - 1
+                          ? workingIdx + 1
+                          : 0; */
+    /* BACK: workingIdx = workingIdx > 0
+                          ? workingIdx - 1
+                          : readPaths.length - 1; */
   }
 
   Future<void> _pickDirectory(BuildContext context) async {
@@ -158,9 +171,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   color: Colors.black,
                   onPressed: () {
                     setState(() {
-                      workingIdx = workingIdx > 0
-                          ? workingIdx - 1
-                          : readPaths.length - 1;
+                      moveIdx(BACK);
                     });
                   },
                 ),
@@ -176,14 +187,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         iconSize: 56,
                         onPressed: () {
                           setState(() {
-                            moveImage(DELETE).then((success) => {
-                                  if (success)
-                                    {
-                                      readPaths.remove(readPaths[workingIdx]),
-                                      workingIdx == readPaths.length
-                                          ? workingIdx--
-                                          : null
-                                    },
+                            classifyImage(DELETE).then((success) => {
                                   setState(() {}),
                                 });
                           });
@@ -204,14 +208,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         iconSize: 56,
                         onPressed: () {
                           setState(() {
-                            moveImage(KEEP).then((success) => {
-                                  if (success)
-                                    {
-                                      readPaths.remove(readPaths[workingIdx]),
-                                      workingIdx == readPaths.length
-                                          ? workingIdx--
-                                          : null
-                                    },
+                            classifyImage(KEEP).then((success) => {
                                   setState(() {}),
                                 });
                           });
@@ -222,9 +219,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   color: Colors.black,
                   onPressed: () {
                     setState(() {
-                      workingIdx = workingIdx < readPaths.length - 1
-                          ? workingIdx + 1
-                          : 0;
+                      moveIdx(FORWARD);
                     });
                   },
                 ),
