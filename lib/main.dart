@@ -75,33 +75,39 @@ class _ImageViewerState extends State<ImageViewer> {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  BuildContext _scaffoldContext;
+  var _workingIdx = 0;
+
   Directory selectedDirectory = new Directory('/storage/emulated/0');
   var readPaths = [];
   var history = [];
-  var workingIdx = 0;
+
   static const KEEP = true;
   static const DELETE = false;
   static const BACK = true;
   static const FORWARD = false;
+  static const MSGERRO = 1;
+  static const MSGWARN = 2;
+  static const MSGSUCC = 3;
+  static const MSGINFO = 4;
 
   Future<bool> classifyImage(bool keep) async {
     try {
-      String oldFile = readPaths[workingIdx];
+      String oldFile = readPaths[_workingIdx];
       String newFilePath =
-          '${selectedDirectory.path}/${keep ? 'quit_keep' : 'quit_delete'}/${readPaths[workingIdx].split("/").last}';
+          '${selectedDirectory.path}/${keep ? 'quit_keep' : 'quit_delete'}/${readPaths[_workingIdx].split("/").last}';
       await moveImage(oldFile, newFilePath);
       history.add('$newFilePath');
-      readPaths.removeAt(workingIdx);
-      if (workingIdx == readPaths.length) moveIdx(BACK);
+      readPaths.removeAt(_workingIdx);
+      if (_workingIdx == readPaths.length) moveIdx(BACK);
     } catch (e) {
-      print('Exception: $e');
+      showSnack("weird: $e", type: MSGERRO);
       return false;
     }
     return true;
   }
 
   Future<void> moveImage(String file, String dst) async {
-    print('move: $file -> $dst');
     var contents = await new File(file).readAsBytes();
     File newFile = File(dst);
     newFile.writeAsBytes(contents);
@@ -112,174 +118,215 @@ class _MyHomePageState extends State<MyHomePage> {
     String historyFile = history.last;
     String historyFileName = historyFile.split('/').last;
     String restoredFile = '${selectedDirectory.path}/$historyFileName';
-    print('undo: $historyFile -> ${selectedDirectory.path}');
     await moveImage(historyFile, restoredFile);
     history.removeLast();
-    readPaths.insert(workingIdx, restoredFile);
+    readPaths.insert(_workingIdx, restoredFile);
     setState(() {});
   }
 
   void moveIdx(bool direction) {
-    workingIdx += direction == FORWARD ? 1 : -1;
-    workingIdx = readPaths.length != 0 ? workingIdx % readPaths.length : 0;
+    _workingIdx += direction == FORWARD ? 1 : -1;
+    if (readPaths.length != 0) {
+      _workingIdx = _workingIdx % readPaths.length;
+    } else {
+      _workingIdx = 0;
+      showSnack("Last image tagged!", type: MSGSUCC);
+    }
   }
 
-  Future<void> _pickDirectory(BuildContext context) async {
+  Future<String> _pickDirectory(BuildContext context) async {
+    String result = "";
     Directory directory = selectedDirectory;
     if (directory == null) {
       directory = await getExternalStorageDirectory();
     }
 
-    Directory newDirectory = await DirectoryPicker.pick(
-      context: context,
-      rootDirectory: directory,
-    );
+    try {
+      Directory newDirectory = await DirectoryPicker.pick(
+        context: context,
+        rootDirectory: directory,
+      );
 
-    if (newDirectory != null) {
-      setState(() {
-        selectedDirectory = newDirectory;
-        if (selectedDirectory != null) {
-          Directory delDir =
-              new Directory('${selectedDirectory.path}/quit_delete');
-          Directory keepDir =
-              new Directory('${selectedDirectory.path}/quit_keep');
-          delDir.exists().then((doesIt) => {!doesIt ? delDir.create() : null});
-          keepDir
-              .exists()
-              .then((doesIt) => {!doesIt ? keepDir.create() : null});
-        }
-        var valid = ['jpg', 'png', 'jpeg', 'bmp'];
-        readPaths = [];
-        selectedDirectory.list().length.then((v) => {
-              if (v > 0)
-                {
-                  selectedDirectory
-                      .list()
-                      .forEach((f) => valid.forEach((ext) => {
-                            if (f.path.toLowerCase().endsWith(ext))
-                              {readPaths.add(f.path)},
-                          }))
-                      .then((v) => {
-                            print('algo pasa: $v, ${readPaths.length}'),
-                            workingIdx = 0,
-                            setState(() {}),
-                          }),
-                },
-            });
-      });
-      print(workingIdx++);
+      if (newDirectory != null) {
+        setState(() {
+          selectedDirectory = newDirectory;
+          if (selectedDirectory != null) {
+            Directory delDir =
+                new Directory('${selectedDirectory.path}/quit_delete');
+            Directory keepDir =
+                new Directory('${selectedDirectory.path}/quit_keep');
+            delDir
+                .exists()
+                .then((doesIt) => {!doesIt ? delDir.create() : null});
+            keepDir
+                .exists()
+                .then((doesIt) => {!doesIt ? keepDir.create() : null});
+          }
+          var valid = ['jpg', 'png', 'jpeg', 'bmp'];
+          readPaths = [];
+          selectedDirectory.list().length.then((v) => {
+                if (v > 0)
+                  {
+                    selectedDirectory
+                        .list()
+                        .forEach((f) => valid.forEach((ext) => {
+                              if (f.path.toLowerCase().endsWith(ext))
+                                {readPaths.add(f.path)},
+                            }))
+                        .then((v) => {
+                              _workingIdx = 0,
+                              setState(() {}),
+                            }),
+                  },
+              });
+        });
+      }
+    } on UnsupportedError {
+      result = "throw alert of iOS not supported";
+    } catch (e) {
+      result = "unhandled exception: $e";
     }
+    return result;
+  }
+
+  void showSnack(String text, {int type = 0}) {
+    Color color;
+    switch (type) {
+      case 1:
+        color = Colors.red;
+        break;
+      case 2:
+        color = Colors.orange;
+        break;
+      case 3:
+        color = Colors.green;
+        break;
+      case 4:
+        color = Colors.lightBlue;
+        break;
+      default:
+        color = Colors.grey.shade900;
+    }
+    Scaffold.of(_scaffoldContext).showSnackBar(SnackBar(
+      content: Text(text),
+      backgroundColor: color,
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
+    Widget body = Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: <Widget>[
+          Text(
+            'Browsing: (${readPaths.length == 0 ? '0' : (_workingIdx + 1)}/${readPaths.length}) ${selectedDirectory.path}',
+          ),
+          ImageViewer(
+              path: readPaths.length == 0 ? '' : readPaths[_workingIdx]),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: <Widget>[
+              Ink(
+                  decoration: ShapeDecoration(
+                    color: Colors.grey.shade100,
+                    shape: RoundedRectangleBorder(),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.skip_previous),
+                    tooltip: 'Previous',
+                    color: Colors.black,
+                    onPressed: () {
+                      setState(() {
+                        moveIdx(BACK);
+                      });
+                    },
+                  )),
+              // ? as
+              // ! important
+              Ink(
+                  decoration: ShapeDecoration(
+                    color: Colors.brown[50],
+                    shape: CircleBorder(),
+                  ),
+                  child: IconButton(
+                      icon: Icon(Icons.delete),
+                      tooltip: 'Delete',
+                      color: Colors.red,
+                      iconSize: 56,
+                      onPressed: () {
+                        setState(() {
+                          classifyImage(DELETE).then((success) => {
+                                setState(() {}),
+                              });
+                        });
+                      })),
+              Ink(
+                  decoration: ShapeDecoration(
+                    color: Colors.grey.shade100,
+                    //gradient: Gradient(colors: [Colors.red, Colors.blue]),
+                    shape: CircleBorder(),
+                  ),
+                  child: IconButton(
+                      icon: Icon(Icons.undo),
+                      tooltip: 'Undo',
+                      color: Colors.yellow[600],
+                      onPressed: history.length <= 0
+                          ? null
+                          : () {
+                              setState(() {
+                                undo();
+                              });
+                            })),
+              Ink(
+                  decoration: ShapeDecoration(
+                      color: Colors.brown[50], shape: CircleBorder()),
+                  child: IconButton(
+                      icon: Icon(Icons.save),
+                      tooltip: 'Keep',
+                      color: Colors.green,
+                      iconSize: 56,
+                      onPressed: () {
+                        setState(() {
+                          classifyImage(KEEP).then((success) => {
+                                setState(() {}),
+                              });
+                        });
+                      })),
+              Ink(
+                  decoration: ShapeDecoration(
+                    color: Colors.grey.shade100,
+                    shape: RoundedRectangleBorder(),
+                  ),
+                  child: IconButton(
+                    icon: Icon(Icons.skip_next),
+                    tooltip: 'Skip next',
+                    color: Colors.black,
+                    onPressed: () {
+                      setState(() {
+                        moveIdx(FORWARD);
+                      });
+                    },
+                  )),
+            ],
+          )
+        ],
+      ),
+    );
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
         actions: <Widget>[
           IconButton(
               icon: Icon(Icons.folder),
-              onPressed: () => _pickDirectory(context)),
+              onPressed: () => _pickDirectory(context).then((onValue) =>
+                  {if (onValue != "") showSnack(onValue, type: MSGERRO)})),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: <Widget>[
-            Text(
-              'Browsing: (${readPaths.length == 0 ? '0' : (workingIdx + 1)}/${readPaths.length}) ${selectedDirectory.path}',
-            ),
-            ImageViewer(
-                path: readPaths.length == 0 ? '' : readPaths[workingIdx]),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: <Widget>[
-                Ink(
-                    decoration: ShapeDecoration(
-                      color: Colors.grey.shade100,
-                      shape: RoundedRectangleBorder(),
-                    ),
-                    child: IconButton(
-                      icon: Icon(Icons.skip_previous),
-                      tooltip: 'Previous',
-                      color: Colors.black,
-                      onPressed: () {
-                        setState(() {
-                          moveIdx(BACK);
-                        });
-                      },
-                    )),
-                // ? as
-                // ! important
-                Ink(
-                    decoration: ShapeDecoration(
-                      color: Colors.brown[50],
-                      shape: CircleBorder(),
-                    ),
-                    child: IconButton(
-                        icon: Icon(Icons.delete),
-                        tooltip: 'Delete',
-                        color: Colors.red,
-                        iconSize: 56,
-                        onPressed: () {
-                          setState(() {
-                            classifyImage(DELETE).then((success) => {
-                                  setState(() {}),
-                                });
-                          });
-                        })),
-                Ink(
-                    decoration: ShapeDecoration(
-                      color: Colors.grey.shade100,
-                      //gradient: Gradient(colors: [Colors.red, Colors.blue]),
-                      shape: CircleBorder(),
-                    ),
-                    child: IconButton(
-                        icon: Icon(Icons.undo),
-                        tooltip: 'Undo',
-                        color: Colors.yellow[600],
-                        onPressed: history.length <= 0
-                            ? null
-                            : () {
-                                setState(() {
-                                  undo();
-                                });
-                              })),
-                Ink(
-                    decoration: ShapeDecoration(
-                        color: Colors.brown[50], shape: CircleBorder()),
-                    child: IconButton(
-                        icon: Icon(Icons.save),
-                        tooltip: 'Keep',
-                        color: Colors.green,
-                        iconSize: 56,
-                        onPressed: () {
-                          setState(() {
-                            classifyImage(KEEP).then((success) => {
-                                  setState(() {}),
-                                });
-                          });
-                        })),
-                Ink(
-                    decoration: ShapeDecoration(
-                      color: Colors.grey.shade100,
-                      shape: RoundedRectangleBorder(),
-                    ),
-                    child: IconButton(
-                      icon: Icon(Icons.skip_next),
-                      tooltip: 'Skip next',
-                      color: Colors.black,
-                      onPressed: () {
-                        setState(() {
-                          moveIdx(FORWARD);
-                        });
-                      },
-                    )),
-              ],
-            )
-          ],
-        ),
-      ),
+      body: new Builder(builder: (BuildContext context) {
+        _scaffoldContext = context;
+        return body;
+      }),
     );
   }
 }
