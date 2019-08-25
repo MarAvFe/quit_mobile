@@ -34,6 +34,48 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => _MyHomePageState();
 }
 
+class ActionButton extends StatefulWidget {
+  ActionButton(
+      {Key key,
+      this.size = 24.0,
+      this.circle = true,
+      this.color = Colors.black,
+      this.bgcolor = Colors.white,
+      this.icon = Icons.device_unknown,
+      this.tooltip = '',
+      this.fn})
+      : super(key: key);
+
+  final double size;
+  final bool circle;
+  final Color color;
+  final Color bgcolor;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback fn;
+
+  @override
+  _ActionButtonState createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<ActionButton> {
+  @override
+  Widget build(BuildContext context) {
+    Widget wid = Ink(
+        decoration: ShapeDecoration(
+          color: widget.bgcolor,
+          shape: widget.circle ? CircleBorder() : RoundedRectangleBorder(),
+        ),
+        child: IconButton(
+            icon: Icon(widget.icon),
+            tooltip: widget.tooltip,
+            color: widget.color,
+            iconSize: widget.size,
+            onPressed: widget.fn == null ? null : widget.fn));
+    return wid;
+  }
+}
+
 class ImageViewer extends StatefulWidget {
   ImageViewer({Key key, this.path}) : super(key: key);
 
@@ -86,6 +128,7 @@ class _MyHomePageState extends State<MyHomePage> {
   static const DELETE = false;
   static const BACK = true;
   static const FORWARD = false;
+
   static const MSGERRO = 1;
   static const MSGWARN = 2;
   static const MSGSUCC = 3;
@@ -213,6 +256,76 @@ class _MyHomePageState extends State<MyHomePage> {
     ));
   }
 
+  List<Widget> getButtons() {
+    Color lightbg = Colors.grey.shade100;
+    Color darkbg = Colors.brown.shade50;
+    var arr = [
+      ActionButton(
+        circle: false,
+        bgcolor: lightbg,
+        tooltip: 'Previous',
+        color: Colors.black,
+        icon: Icons.skip_previous,
+        fn: () {
+          moveIdx(BACK);
+          setState(() {});
+        },
+      ),
+      ActionButton(
+        size: 56,
+        circle: true,
+        bgcolor: darkbg,
+        tooltip: 'Delete',
+        icon: Icons.delete,
+        color: Colors.red.shade600,
+        fn: () {
+          classifyImage(DELETE).then((success) => {
+                setState(() {}),
+              });
+        },
+      ),
+      ActionButton(
+        circle: true,
+        tooltip: 'Undo',
+        bgcolor: lightbg,
+        icon: Icons.undo,
+        color: Colors.yellow.shade600,
+        fn: history.length <= 0
+            ? null
+            : () {
+                setState(() {
+                  undo();
+                });
+              },
+      ),
+      ActionButton(
+        size: 56,
+        circle: true,
+        tooltip: 'Keep',
+        bgcolor: darkbg,
+        icon: Icons.save,
+        color: Colors.green.shade600,
+        fn: () {
+          classifyImage(KEEP).then((success) => {
+                setState(() {}),
+              });
+        },
+      ),
+      ActionButton(
+        circle: false,
+        tooltip: 'Next',
+        bgcolor: lightbg,
+        color: Colors.black,
+        icon: Icons.skip_next,
+        fn: () {
+          moveIdx(FORWARD);
+          setState(() {});
+        },
+      ),
+    ];
+    return arr;
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget body = Center(
@@ -226,93 +339,12 @@ class _MyHomePageState extends State<MyHomePage> {
               path: readPaths.length == 0 ? '' : readPaths[_workingIdx]),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: <Widget>[
-              Ink(
-                  decoration: ShapeDecoration(
-                    color: Colors.grey.shade100,
-                    shape: RoundedRectangleBorder(),
-                  ),
-                  child: IconButton(
-                    icon: Icon(Icons.skip_previous),
-                    tooltip: 'Previous',
-                    color: Colors.black,
-                    onPressed: () {
-                      setState(() {
-                        moveIdx(BACK);
-                      });
-                    },
-                  )),
-              // ? as
-              // ! important
-              Ink(
-                  decoration: ShapeDecoration(
-                    color: Colors.brown[50],
-                    shape: CircleBorder(),
-                  ),
-                  child: IconButton(
-                      icon: Icon(Icons.delete),
-                      tooltip: 'Delete',
-                      color: Colors.red,
-                      iconSize: 56,
-                      onPressed: () {
-                        setState(() {
-                          classifyImage(DELETE).then((success) => {
-                                setState(() {}),
-                              });
-                        });
-                      })),
-              Ink(
-                  decoration: ShapeDecoration(
-                    color: Colors.grey.shade100,
-                    //gradient: Gradient(colors: [Colors.red, Colors.blue]),
-                    shape: CircleBorder(),
-                  ),
-                  child: IconButton(
-                      icon: Icon(Icons.undo),
-                      tooltip: 'Undo',
-                      color: Colors.yellow[600],
-                      onPressed: history.length <= 0
-                          ? null
-                          : () {
-                              setState(() {
-                                undo();
-                              });
-                            })),
-              Ink(
-                  decoration: ShapeDecoration(
-                      color: Colors.brown[50], shape: CircleBorder()),
-                  child: IconButton(
-                      icon: Icon(Icons.save),
-                      tooltip: 'Keep',
-                      color: Colors.green,
-                      iconSize: 56,
-                      onPressed: () {
-                        setState(() {
-                          classifyImage(KEEP).then((success) => {
-                                setState(() {}),
-                              });
-                        });
-                      })),
-              Ink(
-                  decoration: ShapeDecoration(
-                    color: Colors.grey.shade100,
-                    shape: RoundedRectangleBorder(),
-                  ),
-                  child: IconButton(
-                    icon: Icon(Icons.skip_next),
-                    tooltip: 'Skip next',
-                    color: Colors.black,
-                    onPressed: () {
-                      setState(() {
-                        moveIdx(FORWARD);
-                      });
-                    },
-                  )),
-            ],
+            children: getButtons(),
           )
         ],
       ),
     );
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
