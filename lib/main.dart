@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:directory_picker/directory_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:flutter/services.dart';
 
 void main() => runApp(MyApp());
 
@@ -10,12 +11,16 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     return MaterialApp(
-      title: 'QUIT',
+      title: 'Quick Tag',
       theme: ThemeData(
-        primarySwatch: Colors.lightGreen,
+        primarySwatch: Colors.lightBlue,
       ),
-      home: MyHomePage(title: 'Quick Image Tagger'),
+      home: MyHomePage(title: 'Quick Tag'),
     );
   }
 }
@@ -41,26 +46,36 @@ class ImageViewer extends StatefulWidget {
 class _ImageViewerState extends State<ImageViewer> {
   @override
   Widget build(BuildContext context) {
+    var radius10 = new BorderRadius.all(const Radius.circular(10.0));
     var scale = PhotoViewComputedScale.contained;
     return Container(
         width: MediaQuery.of(context).size.width,
         height: MediaQuery.of(context).size.height * 0.65,
         alignment: AlignmentDirectional(0.0, 0.0),
-        child: ClipRect(
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          border: new Border.all(color: Colors.grey[500], width: 3),
+          borderRadius: radius10,
+        ),
+        child: ClipRRect(
+            borderRadius: new BorderRadius.all(const Radius.circular(7)),
             child: new PhotoView(
-          backgroundDecoration: new BoxDecoration(color: Colors.grey[300]),
-          imageProvider: widget.path != ''
-              ? Image.asset(widget.path).image
-              : AssetImage('images/no-image-found.png'),
-          initialScale: scale,
-          minScale: scale * 0.8,
-          maxScale: 4.0,
-        )));
+              backgroundDecoration: new BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: radius10,
+              ),
+              imageProvider: widget.path != ''
+                  ? Image.asset(widget.path).image
+                  : AssetImage('images/no-image-found.png'),
+              initialScale: scale,
+              minScale: scale,
+              maxScale: scale, //4.0,
+            )));
   }
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  Directory selectedDirectory = new Directory('/sdcard');
+  Directory selectedDirectory = new Directory('/storage/emulated/0');
   var readPaths = [];
   var history = [];
   var workingIdx = 0;
@@ -72,15 +87,12 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<bool> classifyImage(bool keep) async {
     try {
       String oldFile = readPaths[workingIdx];
-      var contents = await new File(oldFile).readAsBytes();
       String newFilePath =
           '${selectedDirectory.path}/${keep ? 'quit_keep' : 'quit_delete'}/${readPaths[workingIdx].split("/").last}';
-      File newFile = File(newFilePath);
-      newFile.writeAsBytes(contents);
-      await new File(oldFile).delete();
+      await moveImage(oldFile, newFilePath);
       history.add('$newFilePath');
       readPaths.removeAt(workingIdx);
-      workingIdx == readPaths.length ? moveIdx(BACK) : null;
+      if (workingIdx == readPaths.length) moveIdx(BACK);
     } catch (e) {
       print('Exception: $e');
       return false;
@@ -88,15 +100,28 @@ class _MyHomePageState extends State<MyHomePage> {
     return true;
   }
 
+  Future<void> moveImage(String file, String dst) async {
+    print('move: $file -> $dst');
+    var contents = await new File(file).readAsBytes();
+    File newFile = File(dst);
+    newFile.writeAsBytes(contents);
+    await new File(file).delete();
+  }
+
+  Future<void> undo() async {
+    String historyFile = history.last;
+    String historyFileName = historyFile.split('/').last;
+    String restoredFile = '${selectedDirectory.path}/$historyFileName';
+    print('undo: $historyFile -> ${selectedDirectory.path}');
+    await moveImage(historyFile, restoredFile);
+    history.removeLast();
+    readPaths.insert(workingIdx, restoredFile);
+    setState(() {});
+  }
+
   void moveIdx(bool direction) {
     workingIdx += direction == FORWARD ? 1 : -1;
     workingIdx = readPaths.length != 0 ? workingIdx % readPaths.length : 0;
-    /* FORWARD: workingIdx = workingIdx < readPaths.length - 1
-                          ? workingIdx + 1
-                          : 0; */
-    /* BACK: workingIdx = workingIdx > 0
-                          ? workingIdx - 1
-                          : readPaths.length - 1; */
   }
 
   Future<void> _pickDirectory(BuildContext context) async {
@@ -110,36 +135,40 @@ class _MyHomePageState extends State<MyHomePage> {
       rootDirectory: directory,
     );
 
-    setState(() {
-      selectedDirectory = newDirectory;
-      if (selectedDirectory != null) {
-        Directory delDir =
-            new Directory('${selectedDirectory.path}/quit_delete');
-        Directory keepDir =
-            new Directory('${selectedDirectory.path}/quit_keep');
-        delDir.exists().then((doesIt) => {!doesIt ? delDir.create() : null});
-        keepDir.exists().then((doesIt) => {!doesIt ? keepDir.create() : null});
-      }
-      var valid = ['jpg', 'png', 'jpeg', 'bmp'];
-      readPaths = [];
-      selectedDirectory.list().length.then((v) => {
-            if (v > 0)
-              {
-                selectedDirectory
-                    .list()
-                    .forEach((f) => valid.forEach((ext) => {
-                          if (f.path.toLowerCase().endsWith(ext))
-                            {readPaths.add(f.path)},
-                        }))
-                    .then((v) => {
-                          print('algo pasa: $v, ${readPaths.length}'),
-                          workingIdx = 0,
-                          setState(() {}),
-                        }),
-              },
-          });
-    });
-    print(workingIdx++);
+    if (newDirectory != null) {
+      setState(() {
+        selectedDirectory = newDirectory;
+        if (selectedDirectory != null) {
+          Directory delDir =
+              new Directory('${selectedDirectory.path}/quit_delete');
+          Directory keepDir =
+              new Directory('${selectedDirectory.path}/quit_keep');
+          delDir.exists().then((doesIt) => {!doesIt ? delDir.create() : null});
+          keepDir
+              .exists()
+              .then((doesIt) => {!doesIt ? keepDir.create() : null});
+        }
+        var valid = ['jpg', 'png', 'jpeg', 'bmp'];
+        readPaths = [];
+        selectedDirectory.list().length.then((v) => {
+              if (v > 0)
+                {
+                  selectedDirectory
+                      .list()
+                      .forEach((f) => valid.forEach((ext) => {
+                            if (f.path.toLowerCase().endsWith(ext))
+                              {readPaths.add(f.path)},
+                          }))
+                      .then((v) => {
+                            print('algo pasa: $v, ${readPaths.length}'),
+                            workingIdx = 0,
+                            setState(() {}),
+                          }),
+                },
+            });
+      });
+      print(workingIdx++);
+    }
   }
 
   @override
@@ -165,23 +194,30 @@ class _MyHomePageState extends State<MyHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: <Widget>[
-                IconButton(
-                  icon: Icon(Icons.skip_previous),
-                  tooltip: 'Previous',
-                  color: Colors.black,
-                  onPressed: () {
-                    setState(() {
-                      moveIdx(BACK);
-                    });
-                  },
-                ),
                 Ink(
                     decoration: ShapeDecoration(
-                      color: Colors.grey[200],
+                      color: Colors.grey.shade100,
+                      shape: RoundedRectangleBorder(),
+                    ),
+                    child: IconButton(
+                      icon: Icon(Icons.skip_previous),
+                      tooltip: 'Previous',
+                      color: Colors.black,
+                      onPressed: () {
+                        setState(() {
+                          moveIdx(BACK);
+                        });
+                      },
+                    )),
+                // ? as
+                // ! important
+                Ink(
+                    decoration: ShapeDecoration(
+                      color: Colors.brown[50],
                       shape: CircleBorder(),
                     ),
                     child: IconButton(
-                        icon: Icon(Icons.delete_outline),
+                        icon: Icon(Icons.delete),
                         tooltip: 'Delete',
                         color: Colors.red,
                         iconSize: 56,
@@ -192,15 +228,26 @@ class _MyHomePageState extends State<MyHomePage> {
                                 });
                           });
                         })),
-                IconButton(
-                  icon: Icon(Icons.undo),
-                  tooltip: 'Undo',
-                  color: Colors.yellow[600],
-                  onPressed: history.length <= 0 ? null : () {},
-                ),
                 Ink(
                     decoration: ShapeDecoration(
-                        color: Colors.grey[200], shape: CircleBorder()),
+                      color: Colors.grey.shade100,
+                      //gradient: Gradient(colors: [Colors.red, Colors.blue]),
+                      shape: CircleBorder(),
+                    ),
+                    child: IconButton(
+                        icon: Icon(Icons.undo),
+                        tooltip: 'Undo',
+                        color: Colors.yellow[600],
+                        onPressed: history.length <= 0
+                            ? null
+                            : () {
+                                setState(() {
+                                  undo();
+                                });
+                              })),
+                Ink(
+                    decoration: ShapeDecoration(
+                        color: Colors.brown[50], shape: CircleBorder()),
                     child: IconButton(
                         icon: Icon(Icons.save),
                         tooltip: 'Keep',
@@ -213,16 +260,21 @@ class _MyHomePageState extends State<MyHomePage> {
                                 });
                           });
                         })),
-                IconButton(
-                  icon: Icon(Icons.skip_next),
-                  tooltip: 'Skip next',
-                  color: Colors.black,
-                  onPressed: () {
-                    setState(() {
-                      moveIdx(FORWARD);
-                    });
-                  },
-                ),
+                Ink(
+                    decoration: ShapeDecoration(
+                      color: Colors.grey.shade100,
+                      shape: RoundedRectangleBorder(),
+                    ),
+                    child: IconButton(
+                      icon: Icon(Icons.skip_next),
+                      tooltip: 'Skip next',
+                      color: Colors.black,
+                      onPressed: () {
+                        setState(() {
+                          moveIdx(FORWARD);
+                        });
+                      },
+                    )),
               ],
             )
           ],
