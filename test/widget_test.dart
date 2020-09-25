@@ -20,11 +20,8 @@ void main() {
     expect(find.byWidget(new DirectoryPickerData()), findsNothing);
     await tester.tap(find.byIcon(Icons.folder));
     await tester.pump();
-    if (Platform.isAndroid) {
-      expect(find.byWidget(new DirectoryPickerData()), findsOneWidget);
-    } else {
-      expect(find.byWidget(new DirectoryPickerData()), findsNothing);
-    }
+    expect(find.byWidget(new DirectoryPickerData()),
+        Platform.isAndroid ? findsOneWidget : findsNothing);
     // // Tap the '+' icon and trigger a frame.
     // await tester.tap(find.byIcon(Icons.add));
     // await tester.pump();
